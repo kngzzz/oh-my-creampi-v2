@@ -63,6 +63,7 @@ export type BackgroundTask = {
 	id: string;
 	description: string;
 	prompt: string;
+	cwd: string;
 	agent: string;
 	backend: AgentBackend;
 	status: TaskStatus;
