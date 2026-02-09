@@ -1,6 +1,7 @@
 import { AgentRegistry } from "./agents";
 import { spawnAgentRun } from "./agent-runner";
 import type { AgentRunRequest, BackgroundLaunchInput, BackgroundTask, TaskStatus, Usage } from "./types";
+import { composeKernelPrompt, readKernelAwareness } from "./util";
 import {
 	AdmissionController,
 	GuardrailMemory,
@@ -126,9 +127,8 @@ export class BackgroundTaskManager {
 
 		const guardrailDomain = input.domain ?? profile.name;
 		const guardrailPrefix = await this.guardrails.renderForPrompt(guardrailDomain, 8);
-		const prompt = guardrailPrefix
-			? `${guardrailPrefix}\n\n# Assigned Task\n${input.prompt}`
-			: input.prompt;
+		const kernelAwareness = await readKernelAwareness(input.cwd);
+		const prompt = composeKernelPrompt(kernelAwareness, guardrailPrefix, input.prompt);
 
 		const kernelItem = this.kernel.registerWorkItem({
 			id: taskId,

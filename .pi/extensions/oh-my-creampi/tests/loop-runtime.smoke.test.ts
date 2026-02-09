@@ -38,6 +38,7 @@ function setupRuntime(options?: { loop?: LoopDefinition; policy?: PolicyConfig }
 
 	const runtime = new LoopRuntime({
 		loops: [loop],
+		projectRoot: root,
 		checkpointsDir: path.join(root, "checkpoints"),
 		idempotencyLedger: idempotency,
 		guardrails,

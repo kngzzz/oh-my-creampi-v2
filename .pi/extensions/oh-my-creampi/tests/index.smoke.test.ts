@@ -58,7 +58,7 @@ test("index registers 6 tools", () => {
 test("index registers 3 commands", () => {
 	const root = setupProjectRoot();
 	const { api } = setupExtension(root);
-	assert.deepEqual([...api.commands.keys()].sort(), ["creampi", "creampi-health", "creampi-loops"]);
+	assert.deepEqual([...api.commands.keys()].sort(), ["creampi", "creampi-health", "creampi-init", "creampi-loops"]);
 });
 
 test("background_task tool smoke", async () => {

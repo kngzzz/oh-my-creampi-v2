@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { ConditionEngine, IdempotencyLedger, type PolicyConfig, evaluatePolicy, type GuardrailMemory } from "../primitives";
-import { createId, ensureDir, readTextIfExists, renderTemplate, sha256Hex } from "../util";
+import { composeKernelPrompt, createId, ensureDir, readKernelAwareness, readTextIfExists, renderTemplate, sha256Hex } from "../util";
 import { advanceLoopRuntimeState, initializeLoopRuntimeState, markLoopRuntimeTerminal } from "./runtime-state";
 import type {
 	LoopCheckpoint,
@@ -22,6 +22,7 @@ type LaunchResult = {
 
 type LoopRuntimeOptions = {
 	loops?: LoopDefinition[];
+	projectRoot: string;
 	checkpointsDir: string;
 	idempotencyLedger: IdempotencyLedger;
 	guardrails: GuardrailMemory;
@@ -77,6 +78,7 @@ function makeIdempotencyKey(input: {
 }
 
 export class LoopRuntime {
+	private readonly projectRoot: string;
 	private readonly checkpointsDir: string;
 	private readonly idempotency: IdempotencyLedger;
 	private readonly guardrails: GuardrailMemory;
@@ -88,6 +90,7 @@ export class LoopRuntime {
 	private readonly loops = new Map<string, LoopDefinition>();
 
 	constructor(options: LoopRuntimeOptions) {
+		this.projectRoot = options.projectRoot;
 		this.checkpointsDir = options.checkpointsDir;
 		this.idempotency = options.idempotencyLedger;
 		this.guardrails = options.guardrails;
@@ -241,7 +244,8 @@ export class LoopRuntime {
 		};
 		const renderedPrompt = renderTemplate(loop.promptTemplate, context);
 		const guardrailBlock = await this.guardrails.renderForPrompt(loop.name, 5);
-		const prompt = guardrailBlock ? `${guardrailBlock}\n\n${renderedPrompt}` : renderedPrompt;
+		const kernelAwareness = await readKernelAwareness(this.projectRoot);
+		const prompt = composeKernelPrompt(kernelAwareness, guardrailBlock, renderedPrompt);
 		this.phase(phases, "context", "ok", `promptChars=${prompt.length}`);
 
 		runtime = advanceLoopRuntimeState(runtime, "execute");

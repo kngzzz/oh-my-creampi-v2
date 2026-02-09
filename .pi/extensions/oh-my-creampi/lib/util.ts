@@ -81,6 +81,25 @@ export function findUp(startDir: string, relativePath: string): string | null {
 	}
 }
 
+export async function readKernelAwareness(projectRoot: string): Promise<string> {
+	const awarenessPath = path.join(projectRoot, ".pi", "kernel-awareness.md");
+	try {
+		return (await fs.promises.readFile(awarenessPath, "utf8")).trim();
+	} catch {
+		return "";
+	}
+}
+
+export function composeKernelPrompt(kernelAwareness: string, guardrails: string, prompt: string): string {
+	const sections = [
+		kernelAwareness ? `## Kernel Awareness\n${kernelAwareness}` : "",
+		guardrails ? `## Guardrails (lessons from past runs)\n${guardrails}` : "",
+		"---",
+		prompt,
+	].filter((s) => s.trim().length > 0);
+	return sections.join("\n\n");
+}
+
 export function renderTemplate(template: string, context: Record<string, unknown>): string {
 	return template.replace(/\{([^{}]+)\}/g, (match, keyRaw: string) => {
 		const key = keyRaw.trim();
