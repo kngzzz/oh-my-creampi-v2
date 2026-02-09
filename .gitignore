@@ -1,0 +1,4 @@
+node_modules/
+.creampi/
+*.log
+.DS_Store

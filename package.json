@@ -1,0 +1,13 @@
+{
+  "name": "oh-my-creampi-v2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
