@@ -1,5 +1,7 @@
 import * as path from "node:path";
 
+import { Type } from "@sinclair/typebox";
+
 import { AgentRegistry, getBuiltinAgentProfiles, mergeAgentProfiles } from "./lib/agents";
 import { discoverProjectAgentProfiles } from "./lib/agent-loader";
 import { BackgroundTaskManager } from "./lib/background";
@@ -17,6 +19,40 @@ type RuntimeState = {
 	background: BackgroundTaskManager;
 	loopRuntime: LoopRuntime;
 };
+
+const BackgroundTaskParams = Type.Object({
+	description: Type.String({ description: "Short task description" }),
+	prompt: Type.String({ description: "Full prompt for the background agent" }),
+	agent: Type.Optional(Type.String({ description: "Agent profile name" })),
+	timeoutSec: Type.Optional(Type.Number({ description: "Task timeout in seconds" })),
+});
+
+const BackgroundStatusParams = Type.Object({
+	taskId: Type.String({ description: "Background task ID" }),
+});
+
+const BackgroundCancelParams = Type.Object({
+	taskId: Type.String({ description: "Background task ID" }),
+});
+
+const LoopTriggerParams = Type.Object({
+	loopName: Type.String({ description: "Loop definition name" }),
+	triggerSource: Type.Optional(Type.String({ description: "Trigger source label" })),
+});
+
+const LoopStatusParams = Type.Object({
+	loopName: Type.Optional(Type.String({ description: "Loop definition name" })),
+});
+
+const GuardrailAddParams = Type.Object({
+	domain: Type.String({ description: "Guardrail domain" }),
+	lesson: Type.String({ description: "Lesson text to store" }),
+	severity: Type.Optional(
+		Type.Union([Type.Literal("info"), Type.Literal("warning"), Type.Literal("critical")], {
+			description: "Lesson severity",
+		}),
+	),
+});
 
 function textResult(text: string, details?: Record<string, unknown>, isError = false): ToolResult {
 	return {
@@ -128,7 +164,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "background_task",
+		label: "Background Task",
 		description: "Launch a one-off background agent task.",
+		parameters: BackgroundTaskParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const description = asString((params as Record<string, unknown>).description);
@@ -168,7 +206,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "background_status",
+		label: "Background Status",
 		description: "Get status and output of a background task.",
+		parameters: BackgroundStatusParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const taskId = asString((params as Record<string, unknown>).taskId);
@@ -199,7 +239,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "background_cancel",
+		label: "Background Cancel",
 		description: "Cancel a queued or running background task.",
+		parameters: BackgroundCancelParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const taskId = asString((params as Record<string, unknown>).taskId);
@@ -212,7 +254,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "loop_trigger",
+		label: "Loop Trigger",
 		description: "Trigger a named loop runtime.",
+		parameters: LoopTriggerParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const loopName = asString((params as Record<string, unknown>).loopName);
@@ -240,7 +284,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "loop_status",
+		label: "Loop Status",
 		description: "Show current loop state and checkpoint summary.",
+		parameters: LoopStatusParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const loopName = asString((params as Record<string, unknown>).loopName);
@@ -262,7 +308,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "guardrail_add",
+		label: "Guardrail Add",
 		description: "Add a guardrail lesson for a domain.",
+		parameters: GuardrailAddParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const rt = ensureRuntime(ctx.cwd);
 			const domain = asString((params as Record<string, unknown>).domain);
