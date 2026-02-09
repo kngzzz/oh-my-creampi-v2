@@ -3,6 +3,14 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      ".pi/extensions/oh-my-creampi/index.ts"
+    ]
+  },
   "scripts": {
     "test": "tsx --test .pi/extensions/oh-my-creampi/tests/*.test.ts"
   },
