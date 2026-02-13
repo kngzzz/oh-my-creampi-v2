@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${CREAMPI_ALLOW_PROTECTED_CHANGES:-}" == "1" ]]; then
+  exit 0
+fi
+
+PROTECTED_FILES=(
+  "AGENTS.md"
+  ".pi/extensions/oh-my-creampi/lib/primitives/kernel.ts"
+  ".pi/extensions/oh-my-creampi/lib/agent-runner.ts"
+  ".pi/extensions/oh-my-creampi/lib/temporal-loop.ts"
+  ".githooks/pre-commit"
+)
+
+STAGED_FILES="$(git diff --cached --name-only)"
+
+for protected in "${PROTECTED_FILES[@]}"; do
+  if grep -Fxq "$protected" <<<"$STAGED_FILES"; then
+    echo ""
+    echo "[CREAMPI] Protected kernel file staged: $protected"
+    echo "Commit blocked to prevent control-plane drift."
+    echo "If this is an intentional kernel update, re-run with CREAMPI_ALLOW_PROTECTED_CHANGES=1."
+    echo ""
+    exit 1
+  fi
+done
+
+exit 0

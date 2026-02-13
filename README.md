@@ -348,5 +348,9 @@ To keep runtime minimal/deterministic, note the current surface:
 - Keep primitives in real execution paths (no decorative modules).
 - Prefer simple runtime mechanics over extra systems.
 - Keep tests green.
+- Enable the protected-kernel pre-commit hook before local development:
+  - `git config core.hooksPath .githooks`
+  - This blocks accidental commits to core control-plane files.
+  - Use `CREAMPI_ALLOW_PROTECTED_CHANGES=1` only for intentional kernel updates.
 
 For contributor-oriented notes, see [`AGENTS.md`](./AGENTS.md).
