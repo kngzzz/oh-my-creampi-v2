@@ -149,4 +149,71 @@ export type ExtensionAPI = {
 	registerCommand(name: string, command: RegisteredCommand): void;
 	exec?(bin: string, args: string[], options: { cwd: string; timeout?: number }): Promise<ExtensionExecResult>;
 	on?(eventName: string, handler: (event: unknown, ctx: ToolExecuteContext) => unknown): void;
+	sendUserMessage?(message: string): void;
+	appendEntry?(customType: string, data: unknown): void;
+};
+
+// ── Worktree types ──────────────────────────────────────────
+
+export type WorktreeCleanup = "never" | "on-success" | "on-finish";
+
+export type WorktreeConfig = {
+	enabled: boolean;
+	dir: string;
+	branchPrefix: string;
+	cleanup: WorktreeCleanup;
+};
+
+export type WorktreeInfo = {
+	taskId: string;
+	path: string;
+	branch: string;
+	gitRoot: string;
+	baseBranch: string;
+};
+
+// ── Temporal Loop types ─────────────────────────────────────
+
+export type TemporalLoopState = {
+	active: boolean;
+	completed: boolean;
+	condition: string;
+	iterations: number;
+	startedAt: number;
+	summary?: string;
+};
+
+export type TemporalLoopDeps = {
+	sendMessage: (msg: string) => void;
+	appendEntry: (type: string, data: unknown) => void;
+};
+
+// ── Self-Recursion types ────────────────────────────────────
+
+export type SelfQueryRequest = {
+	prompt: string;
+	agent?: string;
+	timeoutSec?: number;
+	context?: string;
+};
+
+export type SelfQueryResult = {
+	output: string;
+	exitCode: number;
+	usage: Usage;
+	depth: number;
+	taskId: string;
+};
+
+export type SelfRecursionConfig = {
+	maxDepth: number;
+	childModelOverride?: string;
+	budgetDivision: "equal" | "halving";
+};
+
+// ── Kernel Awareness types ──────────────────────────────────
+
+export type KernelAwareness = {
+	raw: string;
+	available: boolean;
 };
