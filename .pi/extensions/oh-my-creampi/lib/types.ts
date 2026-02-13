@@ -31,6 +31,7 @@ export type AgentRunRequest = {
 	agent: AgentProfile;
 	timeoutSec?: number;
 	signal?: AbortSignal;
+	env?: NodeJS.ProcessEnv;
 };
 
 export type AgentRunResult = {

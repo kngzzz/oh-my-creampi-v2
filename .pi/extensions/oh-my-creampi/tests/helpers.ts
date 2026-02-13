@@ -95,6 +95,7 @@ export function makeSpawnRunner(options?: { exitCode?: number; output?: string; 
 		const proc = spawn(process.execPath, ["-e", script], {
 			cwd: request.cwd,
 			stdio: ["pipe", "pipe", "pipe"],
+			env: request.env,
 		});
 
 		let stdout = "";

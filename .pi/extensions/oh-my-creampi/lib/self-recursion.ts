@@ -68,6 +68,10 @@ export class SelfRecursionEngine {
 			prompt,
 			agent,
 			timeoutSec: request.timeoutSec,
+			env: {
+				...process.env,
+				CREAMPI_SELF_DEPTH: String(depth),
+			},
 		});
 		const run = await handle.done;
 

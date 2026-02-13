@@ -130,6 +130,7 @@ export function spawnAgentRun(request: AgentRunRequest, deps?: RunnerDependencie
 		cwd: request.cwd,
 		stdio: ["pipe", "pipe", "pipe"],
 		shell: false,
+		env: request.env,
 	});
 
 	let stdout = "";

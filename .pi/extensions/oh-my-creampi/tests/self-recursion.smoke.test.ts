@@ -61,3 +61,32 @@ test("self recursion enforces max depth", async () => {
 		else process.env.CREAMPI_SELF_DEPTH = previous;
 	}
 });
+
+test("self recursion propagates incremented depth to child env", async () => {
+	const previous = process.env.CREAMPI_SELF_DEPTH;
+	process.env.CREAMPI_SELF_DEPTH = "1";
+
+	let capturedDepth: string | undefined;
+	const spawnRunner = (request: import("../lib/types").AgentRunRequest) => {
+		capturedDepth = request.env?.CREAMPI_SELF_DEPTH;
+		return makeSpawnRunner({ output: "ok", exitCode: 0 })(request);
+	};
+
+	try {
+		const engine = new SelfRecursionEngine({
+			agents: new AgentRegistry(getBuiltinAgentProfiles()),
+			spawnRunner,
+		});
+
+		const response = await engine.query(
+			{ prompt: "run child", agent: "sisyphus" },
+			{ cwd: process.cwd() },
+		);
+
+		assert.equal(response.error, undefined);
+		assert.equal(capturedDepth, "2");
+	} finally {
+		if (previous === undefined) delete process.env.CREAMPI_SELF_DEPTH;
+		else process.env.CREAMPI_SELF_DEPTH = previous;
+	}
+});
