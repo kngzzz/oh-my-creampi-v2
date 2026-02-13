@@ -25,8 +25,6 @@ export type AgentProfile = {
 	filePath?: string;
 };
 
-export type AgentOverride = Partial<Omit<AgentProfile, "name">>;
-
 export type AgentRunRequest = {
 	cwd: string;
 	prompt: string;
@@ -57,6 +55,7 @@ export type BackgroundLaunchInput = {
 	timeoutSec?: number;
 	source?: string;
 	domain?: string;
+	promptComposed?: boolean;
 };
 
 export type BackgroundTask = {
@@ -80,6 +79,7 @@ export type BackgroundTask = {
 	proc?: ChildProcessWithoutNullStreams;
 	idempotencyKey?: string;
 	workItemId?: string;
+	worktree?: WorktreeInfo;
 };
 
 export type CreamPiBackendConfig = {
@@ -93,6 +93,7 @@ export type CreamPiConfig = {
 	defaultModel: string;
 	maxConcurrency: number;
 	defaultTimeoutSec: number;
+	worktree: WorktreeConfig;
 	guardrailsDir: string;
 	idempotencyDir: string;
 	idempotencyTtlSec: number;

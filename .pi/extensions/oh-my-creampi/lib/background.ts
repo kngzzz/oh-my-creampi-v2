@@ -1,7 +1,9 @@
 import { AgentRegistry } from "./agents";
 import { spawnAgentRun } from "./agent-runner";
-import type { AgentRunRequest, BackgroundLaunchInput, BackgroundTask, TaskStatus, Usage } from "./types";
-import { composeKernelPrompt, readKernelAwareness } from "./util";
+import { composeKernelPrompt, readKernelAwareness } from "./kernel-awareness";
+import type { AgentRunRequest, BackgroundLaunchInput, BackgroundTask, Usage } from "./types";
+import type { WorktreeConfig } from "./types";
+import { createWorktree, removeWorktree, type ExecFn } from "./worktree";
 import {
 	AdmissionController,
 	GuardrailMemory,
@@ -10,7 +12,7 @@ import {
 	evaluatePolicy,
 	type PolicyConfig,
 } from "./primitives";
-import { createId, formatDurationMs, sha256Hex } from "./util";
+import { createId, sha256Hex } from "./util";
 
 type SpawnRunner = (request: AgentRunRequest) => ReturnType<typeof spawnAgentRun>;
 
@@ -27,14 +29,9 @@ type BackgroundTaskManagerOptions = {
 	guardrails?: GuardrailMemory;
 	idempotency?: IdempotencyLedger;
 	kernel?: HarnessKernel;
-};
-
-type TaskSummary = {
-	id: string;
-	status: TaskStatus;
-	agent: string;
-	description: string;
-	duration: string;
+	projectRoot?: string;
+	worktreeConfig?: WorktreeConfig;
+	exec?: ExecFn;
 };
 
 function emptyUsage(): Usage {
@@ -56,6 +53,9 @@ export class BackgroundTaskManager {
 	private readonly defaultTimeoutSec: number;
 	private policyConfig?: PolicyConfig;
 	private readonly idempotencyTtlSec: number;
+	private readonly projectRoot: string;
+	private readonly worktreeConfig: WorktreeConfig;
+	private readonly exec?: ExecFn;
 
 	private maxConcurrency: number;
 	private readonly tasks = new Map<string, BackgroundTask>();
@@ -72,6 +72,15 @@ export class BackgroundTaskManager {
 		this.spawnRunner = options.spawnRunner ?? spawnAgentRun;
 		this.admission = options.admission ?? new AdmissionController(this.maxConcurrency);
 		this.guardrails = options.guardrails ?? new GuardrailMemory(options.guardrailsDir);
+		this.projectRoot = options.projectRoot ?? process.cwd();
+		this.worktreeConfig =
+			options.worktreeConfig ?? {
+				enabled: false,
+				dir: ".creampi/worktrees",
+				branchPrefix: "creampi/",
+				cleanup: "on-finish",
+			};
+		this.exec = options.exec;
 		this.idempotency =
 			options.idempotency ??
 			new IdempotencyLedger({
@@ -125,10 +134,16 @@ export class BackgroundTaskManager {
 			return { error: "duplicate task rejected by idempotency ledger" };
 		}
 
+		const kernelAwareness = await readKernelAwareness(this.projectRoot);
 		const guardrailDomain = input.domain ?? profile.name;
-		const guardrailPrefix = await this.guardrails.renderForPrompt(guardrailDomain, 8);
-		const kernelAwareness = await readKernelAwareness(input.cwd);
-		const prompt = composeKernelPrompt(kernelAwareness, guardrailPrefix, input.prompt);
+		const guardrailPrefix = input.promptComposed ? "" : await this.guardrails.renderForPrompt(guardrailDomain, 8);
+		const prompt = input.promptComposed
+			? input.prompt
+			: composeKernelPrompt({
+					kernelAwareness,
+					guardrails: guardrailPrefix ?? undefined,
+					prompt: input.prompt,
+				});
 
 		const kernelItem = this.kernel.registerWorkItem({
 			id: taskId,
@@ -207,8 +222,22 @@ export class BackgroundTaskManager {
 			reason: "agent process started",
 		});
 
+		let runCwd = task.cwd;
+		if (this.worktreeConfig.enabled && this.exec) {
+			const worktree = await createWorktree({
+				exec: this.exec,
+				cwd: task.cwd,
+				taskId: task.id,
+				config: this.worktreeConfig,
+			});
+			if (worktree.info) {
+				task.worktree = worktree.info;
+				runCwd = worktree.info.path;
+			}
+		}
+
 		const handle = this.spawnRunner({
-			cwd: task.cwd,
+			cwd: runCwd,
 			prompt: task.prompt,
 			agent: profile,
 			timeoutSec: task.timeoutSec,
@@ -260,6 +289,21 @@ export class BackgroundTaskManager {
 			});
 		}
 
+		if (this.exec && task.worktree) {
+			const shouldCleanup =
+				this.worktreeConfig.cleanup === "on-finish" ||
+				(this.worktreeConfig.cleanup === "on-success" && task.status === "completed");
+			if (shouldCleanup) {
+				const removed = await removeWorktree(this.exec, task.worktree, {
+					deleteBranch: true,
+					timeout: 20_000,
+				});
+				if (!removed.ok) {
+					task.stderr = `${task.stderr}\nworktree cleanup failed: ${removed.error ?? "unknown"}`.trim();
+				}
+			}
+		}
+
 		this.running.delete(task.id);
 		this.admission.release(task.id);
 		void this.processQueue();
@@ -299,21 +343,6 @@ export class BackgroundTaskManager {
 
 	listTasks(): BackgroundTask[] {
 		return [...this.tasks.values()].sort((a, b) => b.createdAt - a.createdAt);
-	}
-
-	getTaskSummary(): TaskSummary[] {
-		return this.listTasks().map((task) => {
-			const durationMs = task.startedAt
-				? (task.completedAt ?? Date.now()) - task.startedAt
-				: Date.now() - task.createdAt;
-			return {
-				id: task.id,
-				status: task.status,
-				agent: task.agent,
-				description: task.description,
-				duration: formatDurationMs(durationMs),
-			};
-		});
 	}
 
 	getKernel(): HarnessKernel {

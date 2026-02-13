@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { composeKernelPrompt, readKernelAwareness } from "../kernel-awareness";
 import { ConditionEngine, IdempotencyLedger, type PolicyConfig, evaluatePolicy, type GuardrailMemory } from "../primitives";
 import { composeKernelPrompt, createId, ensureDir, readKernelAwareness, readTextIfExists, renderTemplate, sha256Hex } from "../util";
 import { advanceLoopRuntimeState, initializeLoopRuntimeState, markLoopRuntimeTerminal } from "./runtime-state";
@@ -30,6 +31,7 @@ type LoopRuntimeOptions = {
 		agent: string;
 		description: string;
 		prompt: string;
+		promptComposed?: boolean;
 		cwd: string;
 		timeoutSec: number;
 		domain?: string;
@@ -38,6 +40,7 @@ type LoopRuntimeOptions = {
 	conditionEngine?: ConditionEngine;
 	idempotencyTtlSec?: number;
 	now?: () => number;
+	projectRoot?: string;
 };
 
 function normalizeLoopFileName(name: string): string {
@@ -87,6 +90,7 @@ export class LoopRuntime {
 	private readonly conditions: ConditionEngine;
 	private readonly idempotencyTtlSec: number;
 	private readonly now: () => number;
+	private readonly projectRoot: string;
 	private readonly loops = new Map<string, LoopDefinition>();
 
 	constructor(options: LoopRuntimeOptions) {
@@ -99,6 +103,7 @@ export class LoopRuntime {
 		this.conditions = options.conditionEngine ?? new ConditionEngine();
 		this.idempotencyTtlSec = Math.max(1, Math.floor(options.idempotencyTtlSec ?? 600));
 		this.now = options.now ?? (() => Date.now());
+		this.projectRoot = options.projectRoot ?? process.cwd();
 		this.setLoops(options.loops ?? []);
 	}
 
@@ -243,9 +248,13 @@ export class LoopRuntime {
 			},
 		};
 		const renderedPrompt = renderTemplate(loop.promptTemplate, context);
-		const guardrailBlock = await this.guardrails.renderForPrompt(loop.name, 5);
 		const kernelAwareness = await readKernelAwareness(this.projectRoot);
-		const prompt = composeKernelPrompt(kernelAwareness, guardrailBlock, renderedPrompt);
+		const guardrailBlock = await this.guardrails.renderForPrompt(loop.name, 5);
+		const prompt = composeKernelPrompt({
+			kernelAwareness,
+			guardrails: guardrailBlock,
+			prompt: renderedPrompt,
+		});
 		this.phase(phases, "context", "ok", `promptChars=${prompt.length}`);
 
 		runtime = advanceLoopRuntimeState(runtime, "execute");
@@ -300,6 +309,7 @@ export class LoopRuntime {
 				agent: loop.agent,
 				description: `loop:${loop.name}`,
 				prompt,
+				promptComposed: true,
 				cwd: request.cwd,
 				timeoutSec: loop.timeoutSec,
 				domain: loop.name,

@@ -22,6 +22,12 @@ export const DEFAULT_CONFIG: CreamPiConfig = {
 	defaultModel: "gpt-5.3-codex",
 	maxConcurrency: 3,
 	defaultTimeoutSec: 300,
+	worktree: {
+		enabled: false,
+		dir: ".creampi/worktrees",
+		branchPrefix: "creampi/",
+		cleanup: "on-finish",
+	},
 	guardrailsDir: ".creampi/guardrails",
 	idempotencyDir: ".creampi/idempotency",
 	idempotencyTtlSec: 600,
@@ -126,6 +132,15 @@ function asInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
+function asBoolean(value: unknown): boolean | undefined {
+	if (typeof value === "boolean") return value;
+	if (typeof value === "string") {
+		if (value === "true") return true;
+		if (value === "false") return false;
+	}
+	return undefined;
+}
+
 function sanitizeBackend(
 	backend: AgentBackend,
 	value: unknown,
@@ -219,6 +234,15 @@ export function loadCreamPiConfig(cwd: string): LoadedConfig {
 	}
 
 	const backendRoot = asObject(root.backends);
+	const worktreeRoot = asObject(root.worktree);
+	const cleanupRaw = asString(worktreeRoot.cleanup);
+	const cleanup =
+		cleanupRaw === "never" || cleanupRaw === "on-success" || cleanupRaw === "on-finish"
+			? cleanupRaw
+			: DEFAULT_CONFIG.worktree.cleanup;
+	if (cleanupRaw && cleanupRaw !== cleanup) {
+		warnings.push(`worktree.cleanup must be never|on-success|on-finish; using ${DEFAULT_CONFIG.worktree.cleanup}`);
+	}
 
 	const config: CreamPiConfig = {
 		defaultAgent: asString(root.defaultAgent) ?? DEFAULT_CONFIG.defaultAgent,
@@ -226,6 +250,12 @@ export function loadCreamPiConfig(cwd: string): LoadedConfig {
 		defaultModel: asString(root.defaultModel) ?? DEFAULT_CONFIG.defaultModel,
 		maxConcurrency,
 		defaultTimeoutSec,
+		worktree: {
+			enabled: asBoolean(worktreeRoot.enabled) ?? DEFAULT_CONFIG.worktree.enabled,
+			dir: asString(worktreeRoot.dir) ?? DEFAULT_CONFIG.worktree.dir,
+			branchPrefix: asString(worktreeRoot.branchPrefix) ?? DEFAULT_CONFIG.worktree.branchPrefix,
+			cleanup,
+		},
 		guardrailsDir: asString(root.guardrailsDir) ?? DEFAULT_CONFIG.guardrailsDir,
 		idempotencyDir: asString(root.idempotencyDir) ?? DEFAULT_CONFIG.idempotencyDir,
 		idempotencyTtlSec,
