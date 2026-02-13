@@ -53,7 +53,6 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 			loops: discoveredLoops.loops,
 			projectRoot: root,
 			checkpointsDir: resolveStoragePath(root, config.checkpointsDir),
-			projectRoot: root,
 			idempotencyLedger: background.getIdempotencyLedger(),
 			guardrails: background.getGuardrails(),
 			launch: async (launchInput) => {
@@ -111,37 +110,6 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 			}),
 		);
 	};
-
-	pi.registerCommand("creampi-init", {
-		description: "Initialize CreamPi workspace files for current project.",
-		handler: async (_args, ctx) => {
-			const root = resolveProjectRoot(ctx.cwd);
-			const dirs = [
-				path.join(root, ".pi", "loops"),
-				path.join(root, ".pi", "agents"),
-				path.join(root, ".creampi", "guardrails"),
-				path.join(root, ".creampi", "checkpoints"),
-			];
-			for (const dir of dirs) {
-				await fs.promises.mkdir(dir, { recursive: true });
-			}
-
-			const awarenessPath = path.join(root, ".pi", "kernel-awareness.md");
-			if (!fs.existsSync(awarenessPath)) {
-				await fs.promises.writeFile(awarenessPath, KERNEL_AWARENESS_SEED, "utf8");
-			}
-
-			const agentsDir = path.join(root, ".pi", "agents");
-			const existing = await fs.promises.readdir(agentsDir).catch(() => [] as string[]);
-			if (existing.length === 0) {
-				await fs.promises.writeFile(path.join(agentsDir, "default.md"), DEFAULT_AGENT_SEED, "utf8");
-			}
-
-			const text = `CreamPi workspace initialized at ${root}\nDirs: .pi/loops, .pi/agents, .creampi/guardrails, .creampi/checkpoints`;
-			if (ctx.hasUI && ctx.ui) ctx.ui.notify(text, "success");
-			else console.log(text);
-		},
-	});
 
 	if (pi.on) {
 		pi.on("session_start", (event, ctx) => {

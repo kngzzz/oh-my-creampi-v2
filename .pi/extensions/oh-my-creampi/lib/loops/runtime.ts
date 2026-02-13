@@ -3,7 +3,7 @@ import * as path from "node:path";
 
 import { composeKernelPrompt, readKernelAwareness } from "../kernel-awareness";
 import { ConditionEngine, IdempotencyLedger, type PolicyConfig, evaluatePolicy, type GuardrailMemory } from "../primitives";
-import { composeKernelPrompt, createId, ensureDir, readKernelAwareness, readTextIfExists, renderTemplate, sha256Hex } from "../util";
+import { createId, ensureDir, readTextIfExists, renderTemplate, sha256Hex } from "../util";
 import { advanceLoopRuntimeState, initializeLoopRuntimeState, markLoopRuntimeTerminal } from "./runtime-state";
 import type {
 	LoopCheckpoint,
@@ -40,7 +40,6 @@ type LoopRuntimeOptions = {
 	conditionEngine?: ConditionEngine;
 	idempotencyTtlSec?: number;
 	now?: () => number;
-	projectRoot?: string;
 };
 
 function normalizeLoopFileName(name: string): string {
@@ -90,7 +89,6 @@ export class LoopRuntime {
 	private readonly conditions: ConditionEngine;
 	private readonly idempotencyTtlSec: number;
 	private readonly now: () => number;
-	private readonly projectRoot: string;
 	private readonly loops = new Map<string, LoopDefinition>();
 
 	constructor(options: LoopRuntimeOptions) {
@@ -103,7 +101,6 @@ export class LoopRuntime {
 		this.conditions = options.conditionEngine ?? new ConditionEngine();
 		this.idempotencyTtlSec = Math.max(1, Math.floor(options.idempotencyTtlSec ?? 600));
 		this.now = options.now ?? (() => Date.now());
-		this.projectRoot = options.projectRoot ?? process.cwd();
 		this.setLoops(options.loops ?? []);
 	}
 
