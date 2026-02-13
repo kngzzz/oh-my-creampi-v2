@@ -8,6 +8,11 @@ type EntryLike = {
 	data?: unknown;
 };
 
+type IterationMetrics = {
+	linesChanged?: number;
+	progressHash?: string;
+};
+
 function makeDefaultState(): TemporalLoopState {
 	return {
 		active: false,
@@ -26,6 +31,9 @@ export class TemporalLoopEngine {
 	private readonly deps: TemporalLoopDeps;
 
 	private state: TemporalLoopState = makeDefaultState();
+	private lowNoveltyCount = 0;
+	private stalledProgressCount = 0;
+	private lastProgressHash?: string;
 
 	constructor(deps: TemporalLoopDeps) {
 		this.deps = deps;
@@ -39,6 +47,9 @@ export class TemporalLoopEngine {
 			iterations: 0,
 			startedAt: Date.now(),
 		};
+		this.lowNoveltyCount = 0;
+		this.stalledProgressCount = 0;
+		this.lastProgressHash = undefined;
 
 		this.persist({
 			event: "temporal-loop.started",
@@ -52,6 +63,9 @@ export class TemporalLoopEngine {
 
 		this.state.active = false;
 		this.state.completed = false;
+		this.lowNoveltyCount = 0;
+		this.stalledProgressCount = 0;
+		this.lastProgressHash = undefined;
 
 		this.persist({
 			event: "temporal-loop.stopped",
@@ -71,6 +85,9 @@ export class TemporalLoopEngine {
 		this.state.completed = true;
 		this.state.active = false;
 		this.state.summary = summary;
+		this.lowNoveltyCount = 0;
+		this.stalledProgressCount = 0;
+		this.lastProgressHash = undefined;
 
 		this.persist({
 			event: "temporal-loop.completed",
@@ -92,7 +109,7 @@ export class TemporalLoopEngine {
 		};
 	}
 
-	onAgentEnd(): void {
+	onAgentEnd(metrics?: IterationMetrics): void {
 		if (!this.state.active || this.state.completed) return;
 
 		this.state.iterations += 1;
@@ -101,6 +118,36 @@ export class TemporalLoopEngine {
 			event: "temporal-loop.iteration",
 			iteration: this.state.iterations,
 		});
+
+		if (typeof metrics?.linesChanged === "number") {
+			if (metrics.linesChanged < 5) this.lowNoveltyCount += 1;
+			else this.lowNoveltyCount = 0;
+		}
+
+		if (typeof metrics?.progressHash === "string") {
+			if (this.lastProgressHash && this.lastProgressHash === metrics.progressHash) {
+				this.stalledProgressCount += 1;
+			} else {
+				this.stalledProgressCount = 0;
+			}
+			this.lastProgressHash = metrics.progressHash;
+		}
+
+		if (this.lowNoveltyCount >= 3 || this.stalledProgressCount >= 3) {
+			const reason = this.lowNoveltyCount >= 3 ? "diff_entropy" : "maintenance_spiral";
+			this.state.active = false;
+			this.state.completed = false;
+			this.persist({
+				event: "temporal-loop.terminated",
+				reason,
+				lowNoveltyCount: this.lowNoveltyCount,
+				stalledProgressCount: this.stalledProgressCount,
+			});
+			this.deps.sendMessage(
+				`Temporal loop auto-stopped due to ${reason}. Call /creampi-loop status to inspect state and restart only if justified.`,
+			);
+			return;
+		}
 
 		const nudge =
 			this.state.iterations === 1
@@ -128,6 +175,9 @@ export class TemporalLoopEngine {
 
 	restoreFromEntries(entries: Array<EntryLike>): void {
 		this.state = makeDefaultState();
+		this.lowNoveltyCount = 0;
+		this.stalledProgressCount = 0;
+		this.lastProgressHash = undefined;
 
 		for (const entry of entries) {
 			if (entry.type !== "custom" || entry.customType !== LOOP_CUSTOM_TYPE) {
@@ -166,6 +216,12 @@ export class TemporalLoopEngine {
 			}
 
 			if (eventName === "temporal-loop.stopped") {
+				this.state.active = false;
+				this.state.completed = false;
+				continue;
+			}
+
+			if (eventName === "temporal-loop.terminated") {
 				this.state.active = false;
 				this.state.completed = false;
 			}

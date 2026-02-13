@@ -87,6 +87,33 @@ describe("TemporalLoopEngine", () => {
 		assert.equal(messages.length, 0);
 	});
 
+	it("auto-stops on three low-novelty iterations", () => {
+		const { deps, messages } = makeMockDeps();
+		const engine = new TemporalLoopEngine(deps);
+
+		engine.start("ship feature");
+		engine.onAgentEnd({ linesChanged: 1 });
+		engine.onAgentEnd({ linesChanged: 2 });
+		engine.onAgentEnd({ linesChanged: 0 });
+
+		assert.equal(engine.isActive(), false);
+		assert.match(messages[messages.length - 1] ?? "", /auto-stopped/i);
+	});
+
+	it("auto-stops on three stalled progress iterations", () => {
+		const { deps, messages } = makeMockDeps();
+		const engine = new TemporalLoopEngine(deps);
+
+		engine.start("ship feature");
+		engine.onAgentEnd({ progressHash: "a" });
+		engine.onAgentEnd({ progressHash: "a" });
+		engine.onAgentEnd({ progressHash: "a" });
+		engine.onAgentEnd({ progressHash: "a" });
+
+		assert.equal(engine.isActive(), false);
+		assert.match(messages[messages.length - 1] ?? "", /maintenance_spiral/i);
+	});
+
 	it("onBeforeCompact injects instructions", () => {
 		const { deps } = makeMockDeps();
 		const engine = new TemporalLoopEngine(deps);

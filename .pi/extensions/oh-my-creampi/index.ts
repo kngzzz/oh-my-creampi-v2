@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import { AgentRegistry, getBuiltinAgentProfiles, mergeAgentProfiles } from "./lib/agents";
 import { discoverProjectAgentProfiles } from "./lib/agent-loader";
 import { BackgroundTaskManager } from "./lib/background";
@@ -11,6 +14,7 @@ import { SelfRecursionEngine } from "./lib/self-recursion";
 import { TemporalLoopEngine } from "./lib/temporal-loop";
 import { registerTools } from "./lib/tools/register-tools";
 import type { ExtensionAPI } from "./lib/types";
+import { sha256Hex } from "./lib/util";
 
 export default function ohMyCreamPi(pi: ExtensionAPI): void {
 	let runtime: RuntimeState | undefined;
@@ -22,6 +26,38 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 			if (pi.appendEntry) pi.appendEntry(customType, data);
 		},
 	});
+
+	const collectIterationMetrics = async (cwd: string): Promise<{ linesChanged?: number; progressHash?: string }> => {
+		let linesChanged: number | undefined;
+		if (pi.exec) {
+			const diff = await pi.exec("git", ["diff", "--numstat"], { cwd, timeout: 5_000 }).catch(() => undefined);
+			if (diff && diff.code === 0) {
+				linesChanged = diff.stdout
+					.split("\n")
+					.filter((line: string) => line.trim().length > 0)
+					.reduce((sum: number, line: string) => {
+						const [adds, removes] = line.split("\t");
+						const addValue = /^\d+$/.test(adds ?? "") ? Number(adds) : 0;
+						const removeValue = /^\d+$/.test(removes ?? "") ? Number(removes) : 0;
+						return sum + addValue + removeValue;
+					}, 0);
+			}
+		}
+
+		let progressHash: string | undefined;
+		const progressPath = path.join(cwd, "progress.json");
+		try {
+			const content = await fs.promises.readFile(progressPath, "utf8");
+			progressHash = sha256Hex(content);
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code !== "ENOENT") {
+				progressHash = undefined;
+			}
+		}
+
+		return { linesChanged, progressHash };
+	};
 
 	const ensureRuntime = (cwd: string): RuntimeState => {
 		const loaded = loadCreamPiConfig(cwd);
@@ -120,8 +156,9 @@ export default function ohMyCreamPi(pi: ExtensionAPI): void {
 			ensureRuntime(ctx.cwd);
 			restoreTemporalLoop(event);
 		});
-		pi.on("agent_end", () => {
-			temporalLoop.onAgentEnd();
+		pi.on("agent_end", async (_event, ctx) => {
+			const metrics = await collectIterationMetrics(ctx.cwd);
+			temporalLoop.onAgentEnd(metrics);
 		});
 		pi.on("session_before_compact", (event) => {
 			if (!event || typeof event !== "object") return;
