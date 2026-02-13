@@ -1,4 +1,4 @@
-import type { AgentOverride, AgentProfile } from "./types";
+import type { AgentProfile } from "./types";
 
 const AGENT_ALIASES: Record<string, string> = {
 	default: "sisyphus",
@@ -50,23 +50,6 @@ export function mergeAgentProfiles(base: AgentProfile[], incoming: AgentProfile[
 		map.set(normalizeName(profile.name), profile);
 	}
 	return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export function applyAgentOverrides(
-	profiles: AgentProfile[],
-	overrides: Record<string, AgentOverride> | undefined,
-): AgentProfile[] {
-	if (!overrides) return profiles;
-	return profiles.map((profile) => {
-		const override = overrides[profile.name] ?? overrides[normalizeName(profile.name)];
-		if (!override) return profile;
-		return {
-			...profile,
-			...override,
-			name: profile.name,
-			tools: Array.isArray(override.tools) ? override.tools : profile.tools,
-		};
-	});
 }
 
 export class AgentRegistry {

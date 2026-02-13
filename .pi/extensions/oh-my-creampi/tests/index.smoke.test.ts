@@ -41,7 +41,7 @@ function setupExtension(root: string): { api: MockExtensionApi; ctx: ReturnType<
 	return { api, ctx: makeContext(root) };
 }
 
-test("index registers 6 tools", () => {
+test("index registers 8 tools", () => {
 	const root = setupProjectRoot();
 	const { api } = setupExtension(root);
 	const expected = [
@@ -50,15 +50,17 @@ test("index registers 6 tools", () => {
 		"background_cancel",
 		"loop_trigger",
 		"loop_status",
+		"self_query",
+		"signal_loop_success",
 		"guardrail_add",
 	].sort();
 	assert.deepEqual([...api.tools.keys()].sort(), expected);
 });
 
-test("index registers 3 commands", () => {
+test("index registers 5 commands", () => {
 	const root = setupProjectRoot();
 	const { api } = setupExtension(root);
-	assert.deepEqual([...api.commands.keys()].sort(), ["creampi", "creampi-health", "creampi-init", "creampi-loops"]);
+	assert.deepEqual([...api.commands.keys()].sort(), ["creampi", "creampi-health", "creampi-init", "creampi-loop", "creampi-loops"]);
 });
 
 test("background_task tool smoke", async () => {
@@ -136,10 +138,38 @@ test("guardrail_add tool smoke", async () => {
 	assert.match(result.content[0]?.text ?? "", /guardrail added/i);
 });
 
+test("self_query tool smoke", async () => {
+	const root = setupProjectRoot();
+	const { api, ctx } = setupExtension(root);
+	const result = await api.tools.get("self_query")!.execute(
+		"1",
+		{},
+		undefined,
+		undefined,
+		ctx,
+	);
+	assert.match(result.content[0]?.text ?? "", /prompt is required/i);
+});
+
+test("signal_loop_success tool smoke", async () => {
+	const root = setupProjectRoot();
+	const { api, ctx } = setupExtension(root);
+	const result = await api.tools.get("signal_loop_success")!.execute(
+		"1",
+		{},
+		undefined,
+		undefined,
+		ctx,
+	);
+	assert.match(result.content[0]?.text ?? "", /No active temporal loop/i);
+});
+
 test("command smoke: creampi, creampi-loops, creampi-health", async () => {
 	const root = setupProjectRoot();
 	const { api, ctx } = setupExtension(root);
+	await api.commands.get("creampi-init")!.handler("", ctx);
 	await api.commands.get("creampi")!.handler("", ctx);
+	await api.commands.get("creampi-loop")!.handler("", ctx);
 	await api.commands.get("creampi-loops")!.handler("", ctx);
 	await api.commands.get("creampi-health")!.handler("", ctx);
 	assert.ok(true);

@@ -2,10 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export function clamp(value: number, min: number, max: number): number {
-	return Math.max(min, Math.min(max, value));
-}
-
 export function formatDurationMs(ms: number): string {
 	if (!Number.isFinite(ms) || ms <= 0) return "0s";
 	const seconds = Math.floor(ms / 1000);
@@ -16,21 +12,8 @@ export function formatDurationMs(ms: number): string {
 	return `${seconds}s`;
 }
 
-export function nowIso(): string {
-	return new Date().toISOString();
-}
-
-export function toErrorMessage(error: unknown): string {
-	if (error instanceof Error) return error.message;
-	return String(error);
-}
-
 export function createId(prefix: string): string {
 	return `${prefix}_${randomUUID().slice(0, 8)}`;
-}
-
-export function ensureDirSync(dirPath: string): void {
-	fs.mkdirSync(dirPath, { recursive: true });
 }
 
 export async function ensureDir(dirPath: string): Promise<void> {
